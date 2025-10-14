@@ -7,14 +7,6 @@ import { RefreshCw, AlertTriangle } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { Card } from '@/components/ui/card';
 
-const FALLBACK_SENTENCES = [
-  'To be happy is to be able to become aware of oneself without fright.',
-  'The higher we are placed, the more humbly we should walk.',
-  'Government of the people, by the people, for the people, shall not perish from the Earth.',
-  'By accepting yourself and being fully what you are, your presence can make others happy.',
-  'A life spent making mistakes is not only more honorable, but more useful than a life spent doing nothing.',
-];
-
 async function getSentencesFromApi(): Promise<string[]> {
   const response = await fetch('https://api.quotable.io/quotes/random?limit=5');
   if (!response.ok) {
@@ -39,12 +31,12 @@ export default function SentenceExplorer() {
       const newSentences = await getSentencesFromApi();
       setSentences(newSentences);
     } catch (e) {
-      setError('Could not fetch sentences. Displaying fallback sentences.');
-      setSentences(FALLBACK_SENTENCES);
+      setError('Could not fetch sentences. Please check your network connection.');
+      setSentences([]);
       toast({
         variant: "destructive",
         title: "API Error",
-        description: "Could not fetch new sentences from the API. Using fallback sentences.",
+        description: "Could not fetch new sentences from the API. Please try again later.",
       });
     } finally {
       setIsLoading(false);
