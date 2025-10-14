@@ -1,7 +1,7 @@
 'use client';
 
 import type { FC } from 'react';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, CheckCircle2 } from 'lucide-react';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 
@@ -25,12 +25,15 @@ const SentenceCard: FC<SentenceCardProps> = ({ sentence, author, isClicked, onCl
     >
       <Card
         className={cn(
-          'h-full flex flex-col justify-between transition-all duration-300 ease-in-out',
+          'h-full relative flex flex-col justify-between transition-all duration-300 ease-in-out',
           'bg-card/30 backdrop-blur-sm border-border/20 shadow-lg',
           'hover:border-primary/30 hover:shadow-2xl hover:-translate-y-1',
           isClicked && 'opacity-40 hover:opacity-100 border-dashed'
         )}
       >
+        {isClicked && (
+          <CheckCircle2 className="absolute top-2 right-2 h-5 w-5 text-primary/50" />
+        )}
         <CardContent className="p-6 flex-grow">
           <blockquote className="text-lg font-medium text-foreground relative">
             <span className="absolute -left-3 -top-2 text-6xl text-primary/10 font-serif">“</span>
