@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import SentenceCard from './sentence-card';
 import { Button } from '@/components/ui/button';
 import { RefreshCw } from 'lucide-react';
@@ -16,12 +16,15 @@ export default function SentenceExplorer() {
   const loadSentences = useCallback(async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('https://api.quotable.io/quotes/random?limit=5');
+      const response = await fetch('/api/quotes');
+      
       if (!response.ok) {
         throw new Error('Failed to fetch sentences from API.');
       }
       const data = await response.json();
-      const newSentences = data.map((quote: { content: string }) => quote.content);
+      
+      // ZenQuotes API returns [{q: "quote", a: "author"}, ...]
+      const newSentences = data.map((quote: { q: string }) => quote.q).slice(0, 5);
       setSentences(newSentences);
     } catch (error) {
       console.error('Error loading sentences:', error);
