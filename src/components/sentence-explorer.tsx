@@ -3,9 +3,10 @@
 import { useState, useEffect } from 'react';
 import SentenceCard from './sentence-card';
 import { Button } from '@/components/ui/button';
-import { RefreshCw, AlertTriangle } from 'lucide-react';
-import { useToast } from "@/hooks/use-toast";
+import { RefreshCw } from 'lucide-react';
 import { Card } from '@/components/ui/card';
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Label } from "@/components/ui/label"
 
 const LOCAL_SENTENCES = [
   "To be happy is to be able to become aware of oneself without fright.",
@@ -20,6 +21,8 @@ const LOCAL_SENTENCES = [
   "Life is what happens when you’re busy making other plans."
 ];
 
+type Mode = "random" | "today" | "quotes";
+
 function shuffle(array: string[]) {
   const newArray = [...array];
   for (let i = newArray.length - 1; i > 0; i--) {
@@ -29,33 +32,45 @@ function shuffle(array: string[]) {
   return newArray;
 }
 
+const todaySentences = LOCAL_SENTENCES.slice(0, 5);
+
 export default function SentenceExplorer() {
   const [sentences, setSentences] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [clickedSentences, setClickedSentences] = useState<Set<string>>(new Set());
-  const { toast } = useToast();
+  const [mode, setMode] = useState<Mode>("random");
 
-  const fetchSentences = () => {
+  const loadSentences = (currentMode: Mode) => {
     setIsLoading(true);
-    setError(null);
     // Simulate a network request
     setTimeout(() => {
-      setSentences(shuffle(LOCAL_SENTENCES).slice(0, 5));
+      if (currentMode === 'random') {
+        setSentences(shuffle(LOCAL_SENTENCES).slice(0, 5));
+      } else if (currentMode === 'today') {
+        setSentences(todaySentences);
+      } else if (currentMode === 'quotes') {
+        setSentences(LOCAL_SENTENCES);
+      }
       setIsLoading(false);
-    }, 500);
+    }, 300);
   };
 
   useEffect(() => {
-    fetchSentences();
-  }, []);
+    loadSentences(mode);
+  }, [mode]);
 
   const handleSentenceClick = (sentence: string) => {
     setClickedSentences((prev) => new Set(prev).add(sentence));
   };
 
   const handleRegenerate = () => {
-    fetchSentences();
+    loadSentences(mode);
+  };
+
+  const handleModeChange = (newMode: string) => {
+    if (newMode === 'random' || newMode === 'today' || newMode === 'quotes') {
+        setMode(newMode as Mode);
+    }
   };
 
   return (
@@ -64,18 +79,27 @@ export default function SentenceExplorer() {
         <h1 className="text-3xl md:text-4xl font-bold font-headline tracking-tight text-center sm:text-left">
           Sentence Explorer
         </h1>
-        <Button onClick={handleRegenerate} variant="outline" className="shrink-0" disabled={isLoading}>
-          <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-          {isLoading ? 'Loading...' : 'Regenerate'}
-        </Button>
-      </header>
-
-      {error && (
-        <div className="mb-8 flex items-center justify-center gap-2 rounded-lg border border-yellow-500/50 bg-yellow-500/10 p-4 text-sm text-yellow-700 dark:text-yellow-300">
-           <AlertTriangle className="h-5 w-5" />
-           <p>{error}</p>
+        <div className="flex items-center gap-4">
+            <RadioGroup defaultValue="random" onValueChange={handleModeChange} className="flex gap-4">
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="random" id="r1" />
+                <Label htmlFor="r1">Random</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="today" id="r2" />
+                <Label htmlFor="r2">Today's Picks</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="quotes" id="r3" />
+                <Label htmlFor="r3">All Quotes</Label>
+              </div>
+            </RadioGroup>
+          <Button onClick={handleRegenerate} variant="outline" className="shrink-0" disabled={isLoading || mode === 'quotes'}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+            {isLoading ? 'Loading...' : 'Regenerate'}
+          </Button>
         </div>
-      )}
+      </header>
 
       {isLoading && sentences.length === 0 ? (
          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
