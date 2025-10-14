@@ -1,12 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import SentenceCard from './sentence-card';
 import { Button } from '@/components/ui/button';
-import { RefreshCw, Zap } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { useToast } from "@/hooks/use-toast";
-import { regenerateSentencesAction } from '@/app/actions';
 
 export default function SentenceExplorer() {
   const [sentences, setSentences] = useState<string[]>([]);
@@ -17,12 +16,15 @@ export default function SentenceExplorer() {
   const loadSentences = useCallback(async () => {
     setIsLoading(true);
     try {
-      const newSentences = await regenerateSentencesAction();
-      if (newSentences) {
-        setSentences(newSentences);
-      } else {
-        throw new Error('Failed to fetch sentences from action.');
+      const response = await fetch('https://api.quotable.io/quotes/random?limit=5', {
+        cache: 'no-store',
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch sentences from API.');
       }
+      const data = await response.json();
+      const newSentences = data.map((quote: { content: string }) => quote.content);
+      setSentences(newSentences);
     } catch (error) {
       console.error('Error loading sentences:', error);
       toast({
@@ -30,7 +32,6 @@ export default function SentenceExplorer() {
         title: "Could not fetch sentences.",
         description: "Please check your network connection and try again.",
       });
-      // Set empty array on failure
       setSentences([]);
     } finally {
       setIsLoading(false);
