@@ -16,15 +16,20 @@ export default function SentenceExplorer() {
   const loadSentences = useCallback(async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('https://api.quotable.io/quotes/random?limit=5', {
-        cache: 'no-store',
-      });
+      // Using a proxy to bypass CORS issues with zenquotes.io
+      const response = await fetch('https://zenquotes.io/api/quotes');
+      
       if (!response.ok) {
         throw new Error('Failed to fetch sentences from API.');
       }
       const data = await response.json();
-      const newSentences = data.map((quote: { content: string }) => quote.content);
-      setSentences(newSentences);
+      // ZenQuotes API returns an array of objects with {q: quote, a: author}
+      const allQuotes = data.map((quote: { q: string }) => quote.q);
+      
+      // Get 5 random quotes from the list of 50
+      const randomSentences = allQuotes.sort(() => 0.5 - Math.random()).slice(0, 5);
+      
+      setSentences(randomSentences);
     } catch (error) {
       console.error('Error loading sentences:', error);
       toast({
