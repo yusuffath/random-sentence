@@ -28,14 +28,14 @@ export default function SentenceExplorer({ initialSentences }: SentenceExplorerP
           toast({
             variant: 'destructive',
             title: 'Error',
-            description: 'Could not generate new sentences. Check your API key and try again.',
+            description: 'Could not fetch new sentences. Please try again.',
           });
         }
       } catch (error) {
          toast({
             variant: 'destructive',
             title: 'Error',
-            description: 'Could not generate new sentences. Check your API key and try again.',
+            description: 'Could not fetch new sentences. Please try again.',
           });
       }
     });

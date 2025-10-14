@@ -1,21 +1,15 @@
 'use server';
 
-import { generateNewSentences } from '@/ai/flows/generate-new-sentences';
-
 export async function regenerateSentencesAction(): Promise<string[]> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey || apiKey === 'your-api-key-here') {
-    console.error('Gemini API key is missing or is a placeholder.');
-    return [];
-  }
-  
   try {
-    const result = await generateNewSentences({});
-    return result.sentences;
+    const response = await fetch('https://api.quotable.io/quotes/random?limit=5', { cache: 'no-store' });
+    if (!response.ok) {
+      return [];
+    }
+    const data = await response.json();
+    return data.map((quote: any) => quote.content);
   } catch (error) {
-    console.error('Error generating new sentences:', error);
-    // In a real app, you might want to return a more structured error response.
-    // For now, we'll return an empty array and log the error on the server.
+    console.error('Error fetching new sentences:', error);
     return [];
   }
 }
