@@ -1,38 +1,29 @@
 'use server';
 
+type Quote = {
+  _id: string;
+  content: string;
+  author: string;
+};
+
 /**
- * Shuffles an array in place and returns the shuffled array.
- * @param array The array to shuffle.
+ * Fetches new sentences from the Quotable API.
  */
-function shuffle<T>(array: T[]): T[] {
-  let currentIndex = array.length,
-    randomIndex;
-
-  // While there remain elements to shuffle.
-  while (currentIndex !== 0) {
-    // Pick a remaining element.
-    randomIndex = Math.floor(Math.random() * currentIndex);
-    currentIndex--;
-
-    // And swap it with the current element.
-    [array[currentIndex], array[randomIndex]] = [
-      array[randomIndex],
-      array[currentIndex],
-    ];
-  }
-
-  return array;
-}
-
-export async function regenerateSentencesAction(
-  currentSentences: string[]
-): Promise<string[] | null> {
-  // Shuffles the provided sentences and returns them.
-  // This avoids a network call and operates locally.
+export async function regenerateSentencesAction(): Promise<string[] | null> {
   try {
-    return shuffle([...currentSentences]);
+    const response = await fetch('https://api.quotable.io/quotes/random?limit=5', {
+      cache: 'no-store',
+    });
+
+    if (!response.ok) {
+      console.error('API responded with an error:', response.statusText);
+      return null;
+    }
+
+    const data: Quote[] = await response.json();
+    return data.map((quote) => quote.content);
   } catch (error) {
-    console.error('Error shuffling sentences:', error);
+    console.error('Error fetching new sentences:', error);
     return null;
   }
 }

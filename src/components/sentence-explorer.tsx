@@ -9,12 +9,13 @@ import SentenceCard from './sentence-card';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const FALLBACK_SENTENCES = [
-  "To be happy is to be able to become aware of oneself without fright.",
-  "The higher we are placed, the more humbly we should walk.",
-  "Government of the people, by the people, for the people, shall not perish from the Earth.",
-  "By accepting yourself and being fully what you are, your presence can make others happy.",
-  "A life spent making mistakes is not only more honorable, but more useful than a life spent doing nothing.",
+    "To be happy is to be able to become aware of oneself without fright.",
+    "The higher we are placed, the more humbly we should walk.",
+    "Government of the people, by the people, for the people, shall not perish from the Earth.",
+    "By accepting yourself and being fully what you are, your presence can make others happy.",
+    "A life spent making mistakes is not only more honorable, but more useful than a life spent doing nothing."
 ];
+
 
 export default function SentenceExplorer() {
   const [sentences, setSentences] = useState<string[]>([]);
@@ -23,10 +24,10 @@ export default function SentenceExplorer() {
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
-  useEffect(() => {
-    const fetchSentences = async () => {
-      setIsLoading(true);
-      const newSentences = await regenerateSentencesAction(FALLBACK_SENTENCES);
+  const fetchSentences = () => {
+    startTransition(async () => {
+      if (!isLoading) setIsLoading(true);
+      const newSentences = await regenerateSentencesAction();
       if (newSentences && newSentences.length > 0) {
         setSentences(newSentences);
       } else {
@@ -38,24 +39,16 @@ export default function SentenceExplorer() {
         });
       }
       setIsLoading(false);
-    };
+    });
+  };
 
+  useEffect(() => {
     fetchSentences();
-  }, [toast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleRegenerate = () => {
-    startTransition(async () => {
-      const newSentences = await regenerateSentencesAction(sentences);
-      if (newSentences && newSentences.length > 0) {
-        setSentences(newSentences);
-      } else {
-        toast({
-          variant: 'destructive',
-          title: 'Error',
-          description: 'Could not regenerate sentences. Please try again.',
-        });
-      }
-    });
+    fetchSentences();
   };
 
   const handleSentenceClick = (sentence: string) => {
@@ -73,8 +66,8 @@ export default function SentenceExplorer() {
           disabled={isPending || isLoading}
           size="lg"
         >
-          <RefreshCw className={isPending ? 'animate-spin' : ''} />
-          <span>{isPending ? 'Generating...' : 'Regenerate Sentences'}</span>
+          <RefreshCw className={isPending || isLoading ? 'animate-spin' : ''} />
+          <span>{isPending || isLoading ? 'Generating...' : 'Regenerate Sentences'}</span>
         </Button>
       </header>
 
