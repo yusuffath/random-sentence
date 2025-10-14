@@ -1,7 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import SentenceCard from './sentence-card';
+import { Button } from '@/components/ui/button';
+import { RefreshCw } from 'lucide-react';
 
 const FALLBACK_SENTENCES = [
   'To be happy is to be able to become aware of oneself without fright.',
@@ -11,12 +13,26 @@ const FALLBACK_SENTENCES = [
   'A life spent making mistakes is not only more honorable, but more useful than a life spent doing nothing.',
 ];
 
+// Fisher-Yates shuffle algorithm
+const shuffleArray = (array: string[]) => {
+  const newArray = [...array];
+  for (let i = newArray.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+  }
+  return newArray;
+};
+
 export default function SentenceExplorer() {
-  const [sentences] = useState<string[]>(FALLBACK_SENTENCES);
+  const [sentences, setSentences] = useState<string[]>(FALLBACK_SENTENCES);
   const [clickedSentences, setClickedSentences] = useState<Set<string>>(new Set());
 
   const handleSentenceClick = (sentence: string) => {
     setClickedSentences((prev) => new Set(prev).add(sentence));
+  };
+
+  const handleRegenerate = () => {
+    setSentences(shuffleArray(sentences));
   };
 
   return (
@@ -25,6 +41,10 @@ export default function SentenceExplorer() {
         <h1 className="text-3xl md:text-4xl font-bold font-headline tracking-tight text-center sm:text-left">
           Sentence Explorer
         </h1>
+        <Button onClick={handleRegenerate} variant="outline" className="shrink-0">
+          <RefreshCw className="mr-2 h-4 w-4" />
+          Regenerate
+        </Button>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
