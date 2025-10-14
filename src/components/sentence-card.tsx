@@ -13,7 +13,7 @@ interface SentenceCardProps {
 }
 
 const SentenceCard: FC<SentenceCardProps> = ({ sentence, author, isClicked, onClick }) => {
-  const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(`"${sentence}" ${author}`)}`;
+  const searchUrl = `https://www.bing.com/search?q=${encodeURIComponent(`"${sentence}" ${author}`)}&qs=PN&form=TSFLBL`;
 
   return (
     <a
