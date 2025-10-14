@@ -30,11 +30,12 @@ export default function SentenceExplorer() {
       try {
         const response = await fetch(`/api/quotes?mode=${currentMode}`);
 
-        if (!response.ok) {
-          throw new Error('Failed to fetch sentences from API.');
-        }
         const data = await response.json();
 
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to fetch sentences from API.');
+        }
+        
         // The API returns an array for all modes, even if it's a single quote.
         setSentences(data);
       } catch (error) {
@@ -42,7 +43,7 @@ export default function SentenceExplorer() {
         toast({
           variant: 'destructive',
           title: 'Could not fetch sentences.',
-          description: 'Please check your network connection and try again.',
+          description: error instanceof Error ? error.message : 'Please check your network connection and try again.',
         });
         setSentences([]);
       } finally {
