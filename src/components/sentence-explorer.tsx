@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useEffect } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -10,33 +10,39 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 interface SentenceExplorerProps {
   initialSentences: string[];
+  showFallbackError?: boolean;
 }
 
-export default function SentenceExplorer({ initialSentences }: SentenceExplorerProps) {
+export default function SentenceExplorer({
+  initialSentences,
+  showFallbackError = false,
+}: SentenceExplorerProps) {
   const [sentences, setSentences] = useState<string[]>(initialSentences);
   const [clickedSentences, setClickedSentences] = useState<Set<string>>(new Set());
   const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
 
+  useEffect(() => {
+    if (showFallbackError) {
+      toast({
+        variant: 'destructive',
+        title: 'API Error',
+        description: 'Could not fetch sentences. Displaying fallback data.',
+      });
+    }
+  }, [showFallbackError, toast]);
+
   const handleRegenerate = () => {
     startTransition(async () => {
-      try {
-        const newSentences = await regenerateSentencesAction();
-        if (newSentences && newSentences.length > 0) {
-          setSentences(newSentences);
-        } else {
-          toast({
-            variant: 'destructive',
-            title: 'Error',
-            description: 'Could not fetch new sentences. Please try again.',
-          });
-        }
-      } catch (error) {
-         toast({
-            variant: 'destructive',
-            title: 'Error',
-            description: 'Could not fetch new sentences. Please try again.',
-          });
+      const newSentences = await regenerateSentencesAction();
+      if (newSentences && newSentences.length > 0) {
+        setSentences(newSentences);
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: 'Could not fetch new sentences. Please try again.',
+        });
       }
     });
   };
@@ -56,7 +62,7 @@ export default function SentenceExplorer({ initialSentences }: SentenceExplorerP
           <span>{isPending ? 'Generating...' : 'Regenerate Sentences'}</span>
         </Button>
       </header>
-      
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {isPending
           ? Array.from({ length: 5 }).map((_, i) => (
