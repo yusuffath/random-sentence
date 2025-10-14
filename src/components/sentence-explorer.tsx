@@ -8,12 +8,14 @@ import { useToast } from "@/hooks/use-toast";
 import { Card } from '@/components/ui/card';
 
 async function getSentencesFromApi(): Promise<string[]> {
-  const response = await fetch('https://api.quotable.io/quotes/random?limit=5');
+  const response = await fetch('https://zenquotes.io/api/quotes');
   if (!response.ok) {
     throw new Error('Could not fetch sentences.');
   }
   const data = await response.json();
-  return data.map((quote: { content: string }) => quote.content);
+  // The API returns 50 quotes, let's shuffle and take 5
+  const shuffled = data.sort(() => 0.5 - Math.random());
+  return shuffled.slice(0, 5).map((quote: { q: string }) => quote.q);
 }
 
 
@@ -45,7 +47,7 @@ export default function SentenceExplorer() {
 
   useEffect(() => {
     fetchSentences();
-  }, [toast]);
+  }, []);
 
   const handleSentenceClick = (sentence: string) => {
     setClickedSentences((prev) => new Set(prev).add(sentence));
