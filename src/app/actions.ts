@@ -1,9 +1,17 @@
 'use server';
 
-/**
- * This action is no longer used but kept to prevent build errors.
- * The sentence generation is now handled client-side with a static list.
- */
 export async function regenerateSentencesAction(): Promise<string[] | null> {
-  return null;
+  try {
+    const response = await fetch('https://api.quotable.io/quotes/random?limit=5', {
+      cache: 'no-store',
+    });
+    if (!response.ok) {
+      return null;
+    }
+    const data = await response.json();
+    return data.map((quote: { content: string }) => quote.content);
+  } catch (error) {
+    console.error('Failed to fetch sentences:', error);
+    return null;
+  }
 }
