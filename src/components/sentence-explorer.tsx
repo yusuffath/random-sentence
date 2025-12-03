@@ -4,12 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Quote, RefreshCw, Timer } from "lucide-react";
+import { Quote, RefreshCw, Timer, PlayCircle, AlertCircle } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import SentenceCard from "./sentence-card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import ArticleCard from "./article-card";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 type Quote = {
   q: string;
@@ -26,7 +28,7 @@ type Article = {
 type Mode = "random" | "today" | "quotes" | "article";
 
 const COOLDOWN_SECONDS = 30;
-const AUTO_OPEN_DELAY = 5000;
+const DEFAULT_AUTO_OPEN_DELAY = 10; // in seconds
 
 export default function SentenceExplorer() {
   const [sentences, setSentences] = useState<Quote[]>([]);
@@ -40,7 +42,12 @@ export default function SentenceExplorer() {
   );
   const [mode, setMode] = useState<Mode>("quotes");
   const [cooldown, setCooldown] = useState(0);
-  const [isAutoOpen, setIsAutoOpen] = useState(false);
+  const [isAutoOpenEnabled, setIsAutoOpenEnabled] = useState(false);
+  const [isAutoOpening, setIsAutoOpening] = useState(false);
+  const [autoOpenDelay, setAutoOpenDelay] = useState<number | string>(
+    DEFAULT_AUTO_OPEN_DELAY
+  );
+  const [delayError, setDelayError] = useState<string | null>(null);
   const autoOpenTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
 
@@ -50,7 +57,8 @@ export default function SentenceExplorer() {
     "sentenceExplorer_clicked_sentences";
   const CACHE_KEY_CLICKED_ARTICLES_PREFIX = "sentenceExplorer_clicked_articles";
   const CACHE_KEY_MODE = "sentenceExplorer_mode";
-  const CACHE_KEY_AUTO_OPEN = "sentenceExplorer_autoOpen";
+  const CACHE_KEY_AUTO_OPEN_ENABLED = "sentenceExplorer_autoOpenEnabled";
+  const CACHE_KEY_AUTO_OPEN_DELAY = "sentenceExplorer_autoOpenDelay";
 
   const getCacheKeys = (mode: Mode) => ({
     sentencesKey: `${CACHE_KEY_SENTENCES_PREFIX}_${mode}`,
@@ -184,9 +192,18 @@ export default function SentenceExplorer() {
         setClickedArticles(new Set(JSON.parse(cachedClickedArticles)));
       }
 
-      const cachedAutoOpen = localStorage.getItem(CACHE_KEY_AUTO_OPEN);
-      if (cachedAutoOpen) {
-        setIsAutoOpen(JSON.parse(cachedAutoOpen));
+      const cachedAutoOpenEnabled = localStorage.getItem(
+        CACHE_KEY_AUTO_OPEN_ENABLED
+      );
+      if (cachedAutoOpenEnabled) {
+        setIsAutoOpenEnabled(JSON.parse(cachedAutoOpenEnabled));
+      }
+
+      const cachedAutoOpenDelay = localStorage.getItem(
+        CACHE_KEY_AUTO_OPEN_DELAY
+      );
+      if (cachedAutoOpenDelay) {
+        setAutoOpenDelay(Math.max(5, parseInt(cachedAutoOpenDelay, 10)));
       }
 
       loadSentences(cachedMode);
@@ -197,44 +214,53 @@ export default function SentenceExplorer() {
 
   useEffect(() => {
     const triggerAutoOpen = () => {
-      if (!isAutoOpen || isLoading) {
+      if (!isAutoOpening || isLoading) {
         return;
       }
+
+      const delayInMs =
+        (typeof autoOpenDelay === "number"
+          ? autoOpenDelay
+          : DEFAULT_AUTO_OPEN_DELAY) * 1000;
+      let unclickedItemFound = false;
 
       if (mode === "article") {
         const unclickedArticle = articles.find(
           (a) => !clickedArticles.has(a.id)
         );
         if (unclickedArticle) {
+          unclickedItemFound = true;
           autoOpenTimeoutRef.current = setTimeout(() => {
             window.open(unclickedArticle.url, "_blank");
             handleArticleClick(unclickedArticle.id);
-          }, AUTO_OPEN_DELAY);
-        } else {
-          setIsAutoOpen(false);
-          localStorage.setItem(CACHE_KEY_AUTO_OPEN, JSON.stringify(false));
+          }, delayInMs);
         }
       } else {
         const unclickedSentence = sentences.find(
           (s) => !clickedSentences.has(s.q)
         );
         if (unclickedSentence) {
+          unclickedItemFound = true;
           autoOpenTimeoutRef.current = setTimeout(() => {
             const searchUrl = `https://www.bing.com/search?q=${encodeURIComponent(
               `"${unclickedSentence.q}" ${unclickedSentence.a}`
             )}&qs=PN&form=TSFLBL`;
             window.open(searchUrl, "_blank");
             handleSentenceClick(unclickedSentence.q);
-          }, AUTO_OPEN_DELAY);
-        } else {
-          // All sentences have been clicked, turn off auto mode.
-          setIsAutoOpen(false);
-          localStorage.setItem(CACHE_KEY_AUTO_OPEN, JSON.stringify(false));
+          }, delayInMs);
         }
+      }
+
+      if (!unclickedItemFound) {
+        // All items have been clicked, turn off auto mode.
+        setIsAutoOpening(false);
       }
     };
 
-    triggerAutoOpen();
+    // Only trigger if auto-opening is active, to avoid running on initial render
+    if (isAutoOpening) {
+      triggerAutoOpen();
+    }
 
     return () => {
       if (autoOpenTimeoutRef.current) {
@@ -242,13 +268,14 @@ export default function SentenceExplorer() {
       }
     };
   }, [
-    isAutoOpen,
+    isAutoOpening,
     sentences,
     articles,
     clickedSentences,
     clickedArticles,
     isLoading,
     mode,
+    autoOpenDelay,
   ]);
 
   useEffect(() => {
@@ -285,7 +312,7 @@ export default function SentenceExplorer() {
   };
 
   const handleRegenerate = () => {
-    if (isLoading || (mode === "random" && cooldown > 0)) return;
+    if (isLoading || (cooldown > 0 && mode !== "article")) return;
 
     if (mode === "article") {
       setClickedArticles(new Set());
@@ -307,6 +334,7 @@ export default function SentenceExplorer() {
     if (autoOpenTimeoutRef.current) {
       clearTimeout(autoOpenTimeoutRef.current);
     }
+    setIsAutoOpening(false);
 
     if (newMode === "article") {
       const { clickedArticlesKey } = getCacheKeys(newMode);
@@ -326,9 +354,76 @@ export default function SentenceExplorer() {
     localStorage.setItem(CACHE_KEY_MODE, newMode);
   };
 
-  const handleAutoOpenChange = (checked: boolean) => {
-    setIsAutoOpen(checked);
-    localStorage.setItem(CACHE_KEY_AUTO_OPEN, JSON.stringify(checked));
+  const handleAutoOpenEnabledChange = (checked: boolean) => {
+    setIsAutoOpenEnabled(checked);
+    localStorage.setItem(CACHE_KEY_AUTO_OPEN_ENABLED, JSON.stringify(checked));
+    if (!checked) {
+      setIsAutoOpening(false);
+      setDelayError(null);
+    }
+  };
+
+  const handleDelayChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setAutoOpenDelay(value);
+
+    if (value === "" || /^\d+$/.test(value)) {
+      const numValue =
+        value === "" ? DEFAULT_AUTO_OPEN_DELAY : parseInt(value, 10);
+      if (numValue < 5 && value !== "") {
+        setDelayError("Min 5 seconds");
+      } else {
+        setDelayError(null);
+      }
+    } else {
+      setDelayError("Should be number");
+    }
+  };
+
+  const startAutoOpening = () => {
+    if (delayError) return;
+
+    const finalDelay =
+      typeof autoOpenDelay === "number"
+        ? Math.max(5, autoOpenDelay)
+        : autoOpenDelay === ""
+        ? DEFAULT_AUTO_OPEN_DELAY
+        : Math.max(5, parseInt(autoOpenDelay as string, 10));
+
+    setAutoOpenDelay(finalDelay);
+    localStorage.setItem(CACHE_KEY_AUTO_OPEN_DELAY, finalDelay.toString());
+
+    // Immediately open the first unclicked item
+    let unclickedItemFound = false;
+    if (mode === "article") {
+      const unclickedArticle = articles.find((a) => !clickedArticles.has(a.id));
+      if (unclickedArticle) {
+        unclickedItemFound = true;
+        window.open(unclickedArticle.url, "_blank");
+        handleArticleClick(unclickedArticle.id);
+      }
+    } else {
+      const unclickedSentence = sentences.find(
+        (s) => !clickedSentences.has(s.q)
+      );
+      if (unclickedSentence) {
+        unclickedItemFound = true;
+        const searchUrl = `https://www.bing.com/search?q=${encodeURIComponent(
+          `"${unclickedSentence.q}" ${unclickedSentence.a}`
+        )}&qs=PN&form=TSFLBL`;
+        window.open(searchUrl, "_blank");
+        handleSentenceClick(unclickedSentence.q);
+      }
+    }
+
+    if (unclickedItemFound) {
+      setIsAutoOpening(true);
+    } else {
+      toast({
+        title: "All items visited",
+        description: "There are no unclicked items left to open.",
+      });
+    }
   };
 
   const title = useMemo(() => {
@@ -344,7 +439,13 @@ export default function SentenceExplorer() {
     }
   }, [mode]);
 
-  const isRegenerateDisabled = isLoading || (mode === "random" && cooldown > 0);
+  const isRegenerateDisabled =
+    isLoading || (cooldown > 0 && mode !== "article");
+
+  const handleRegenerateClick = () => {
+    if (isRegenerateDisabled) return;
+    handleRegenerate();
+  };
 
   const renderContent = () => {
     if (mode === "article") {
@@ -406,7 +507,7 @@ export default function SentenceExplorer() {
 
   return (
     <div className="container mx-auto px-4 py-12 md:py-20">
-      <header className="flex flex-col items-center text-center mb-12">
+      <header className="flex flex-col items-center text-center mb-8">
         <div className="flex items-center gap-4 mb-4">
           <Quote className="h-12 w-12 text-primary/80" />
           <h1 className="text-5xl md:text-6xl font-bold font-headline tracking-tight">
@@ -418,7 +519,7 @@ export default function SentenceExplorer() {
         </p>
       </header>
 
-      <div className="flex flex-col sm:flex-row justify-center items-center gap-4 mb-10">
+      <div className="flex justify-center items-center gap-2 mb-8">
         <Tabs
           value={mode}
           onValueChange={handleModeChange}
@@ -432,36 +533,71 @@ export default function SentenceExplorer() {
           </TabsList>
         </Tabs>
         <Button
-          onClick={handleRegenerate}
-          size="lg"
-          variant="secondary"
+          onClick={handleRegenerateClick}
+          variant="ghost"
+          size="sm"
           disabled={isRegenerateDisabled}
-          className="w-full sm:w-auto"
+          className={cn(
+            "h-10 text-muted-foreground hover:bg-card/50 hover:text-foreground",
+            (isLoading || (cooldown > 0 && mode !== "article")) &&
+              "text-foreground"
+          )}
         >
           {isLoading ? (
             <>
-              <RefreshCw className="h-5 w-5 animate-spin" />
-              <span>Loading...</span>
+              <RefreshCw className="h-4 w-4 animate-spin" />
+              <span className="ml-2 hidden sm:inline">Loading...</span>
             </>
-          ) : mode === "random" && cooldown > 0 ? (
+          ) : cooldown > 0 && mode !== "article" ? (
             <>
-              <Timer className="h-5 w-5" />
-              <span>{`Wait ${cooldown}s`}</span>
+              <Timer className="h-4 w-4" />
+              <span className="ml-2 hidden sm:inline">{`Wait ${cooldown}s`}</span>
             </>
           ) : (
-            <>
-              <RefreshCw className="h-5 w-5" />
-              <span>New Content</span>
-            </>
+            <RefreshCw className="h-4 w-4" />
           )}
         </Button>
-        <div className="flex items-center space-x-2">
-          <Switch
-            id="auto-open-mode"
-            checked={isAutoOpen}
-            onCheckedChange={handleAutoOpenChange}
-          />
-          <Label htmlFor="auto-open-mode">Auto-Open</Label>
+      </div>
+
+      <div className="flex items-center justify-start gap-4 mb-8">
+        <div className="flex items-center justify-center gap-4 p-4 rounded-lg bg-card/20">
+          <div className="flex items-center space-x-2">
+            <Switch
+              id="auto-open-mode"
+              checked={isAutoOpenEnabled}
+              onCheckedChange={handleAutoOpenEnabledChange}
+            />
+            <Label htmlFor="auto-open-mode">Auto-Open</Label>
+          </div>
+          {isAutoOpenEnabled && (
+            <>
+              <div className="relative flex items-center space-x-2">
+                <Input
+                  type="text"
+                  id="delay-seconds"
+                  value={autoOpenDelay}
+                  onChange={handleDelayChange}
+                  className="w-20"
+                  placeholder="≥ 5"
+                />
+                <Label htmlFor="delay-seconds">seconds</Label>
+                {delayError && (
+                  <div className="flex items-center text-red-500 text-xs ml-2">
+                    <AlertCircle className="h-4 w-4 mr-1" />
+                    {delayError}
+                  </div>
+                )}
+              </div>
+              <Button
+                onClick={startAutoOpening}
+                variant="secondary"
+                disabled={isAutoOpening || isLoading || !!delayError}
+              >
+                <PlayCircle className="h-5 w-5" />
+                {isAutoOpening && <span>Running...</span>}
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
