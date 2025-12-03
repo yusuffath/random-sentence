@@ -5,8 +5,10 @@ import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Quote, RefreshCw, Timer } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import SentenceCard from "./sentence-card";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 type Quote = {
   q: string;
@@ -16,6 +18,7 @@ type Quote = {
 type Mode = "random" | "today" | "quotes";
 
 const COOLDOWN_SECONDS = 30;
+const AUTO_OPEN_DELAY = 10000; // 10 seconds
 
 export default function SentenceExplorer() {
   const [sentences, setSentences] = useState<Quote[]>([]);
@@ -25,11 +28,14 @@ export default function SentenceExplorer() {
   );
   const [mode, setMode] = useState<Mode>("quotes");
   const [cooldown, setCooldown] = useState(0);
+  const [isAutoOpen, setIsAutoOpen] = useState(false);
+  const autoOpenTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
 
   const CACHE_KEY_SENTENCES_PREFIX = "sentenceExplorer_sentences";
   const CACHE_KEY_CLICKED_PREFIX = "sentenceExplorer_clicked";
   const CACHE_KEY_MODE = "sentenceExplorer_mode";
+  const CACHE_KEY_AUTO_OPEN = "sentenceExplorer_autoOpen";
 
   const getCacheKeys = (mode: Mode) => ({
     sentencesKey: `${CACHE_KEY_SENTENCES_PREFIX}_${mode}`,
@@ -38,31 +44,24 @@ export default function SentenceExplorer() {
 
   const loadSentences = useCallback(
     async (currentMode: Mode, forceRefresh = false) => {
-      const { sentencesKey, clickedKey } = getCacheKeys(currentMode);
-      if (!forceRefresh || cooldown > 0) {
+      setIsLoading(true);
+      const { sentencesKey } = getCacheKeys(currentMode);
+
+      if (!forceRefresh) {
         try {
           const cachedSentences = localStorage.getItem(sentencesKey);
-
           if (cachedSentences) {
-            const parsedSentenceCached = JSON.parse(cachedSentences);
-            setSentences(parsedSentenceCached);
-            const cachedClicked = localStorage.getItem(clickedKey);
-            if (cachedClicked) {
-              setClickedSentences(new Set(JSON.parse(cachedClicked)));
-            }
+            setSentences(JSON.parse(cachedSentences));
             setIsLoading(false);
             return;
           }
         } catch (error) {
-          console.warn(
-            "Could not check navigation type, proceeding with fetch."
-          );
+          console.warn("Could not load from cache, fetching from API.");
         }
       }
 
       try {
         const response = await fetch(`/api/quotes?mode=${currentMode}`);
-
         const data = await response.json();
 
         if (!response.ok) {
@@ -72,9 +71,9 @@ export default function SentenceExplorer() {
         const newSentences = Array.isArray(data) ? data : [data];
         setSentences(newSentences);
         localStorage.setItem(sentencesKey, JSON.stringify(newSentences));
-        localStorage.setItem(CACHE_KEY_MODE, currentMode);
-
-        setCooldown(COOLDOWN_SECONDS);
+        if (forceRefresh) {
+          setCooldown(COOLDOWN_SECONDS);
+        }
       } catch (error) {
         console.error("Error loading sentences:", error);
         toast({
@@ -90,29 +89,65 @@ export default function SentenceExplorer() {
         setIsLoading(false);
       }
     },
-    [toast, cooldown]
+    [toast]
   );
 
   useEffect(() => {
     try {
-      const cachedMode = localStorage.getItem(CACHE_KEY_MODE) as Mode | null;
-      const currentMode = cachedMode || "quotes";
-      setMode(currentMode);
+      const cachedMode =
+        (localStorage.getItem(CACHE_KEY_MODE) as Mode) || "quotes";
+      setMode(cachedMode);
 
-      const { clickedKey } = getCacheKeys(mode);
+      const { clickedKey } = getCacheKeys(cachedMode);
       const cachedClicked = localStorage.getItem(clickedKey);
       if (cachedClicked) {
         setClickedSentences(new Set(JSON.parse(cachedClicked)));
-      } else {
-        localStorage.removeItem(clickedKey);
       }
 
-      loadSentences(currentMode);
+      const cachedAutoOpen = localStorage.getItem(CACHE_KEY_AUTO_OPEN);
+      if (cachedAutoOpen) {
+        setIsAutoOpen(JSON.parse(cachedAutoOpen));
+      }
+
+      loadSentences(cachedMode);
     } catch (e) {
-      // Fallback for environments where performance API might not be available
       loadSentences("quotes");
     }
-  }, []);
+  }, [loadSentences]);
+
+  useEffect(() => {
+    const triggerAutoOpen = () => {
+      if (!isAutoOpen || isLoading || sentences.length === 0) {
+        return;
+      }
+
+      const unclickedSentence = sentences.find(
+        (s) => !clickedSentences.has(s.q)
+      );
+
+      if (unclickedSentence) {
+        autoOpenTimeoutRef.current = setTimeout(() => {
+          const searchUrl = `https://www.bing.com/search?q=${encodeURIComponent(
+            `"${unclickedSentence.q}" ${unclickedSentence.a}`
+          )}&qs=PN&form=TSFLBL`;
+          window.open(searchUrl, "_blank");
+          handleSentenceClick(unclickedSentence.q);
+        }, AUTO_OPEN_DELAY);
+      } else {
+        // All sentences have been clicked, turn off auto mode.
+        setIsAutoOpen(false);
+        localStorage.setItem(CACHE_KEY_AUTO_OPEN, JSON.stringify(false));
+      }
+    };
+
+    triggerAutoOpen();
+
+    return () => {
+      if (autoOpenTimeoutRef.current) {
+        clearTimeout(autoOpenTimeoutRef.current);
+      }
+    };
+  }, [isAutoOpen, sentences, clickedSentences, isLoading]);
 
   useEffect(() => {
     if (cooldown > 0) {
@@ -124,30 +159,48 @@ export default function SentenceExplorer() {
   }, [cooldown]);
 
   const handleSentenceClick = (sentence: string) => {
-    const newClicked = new Set(clickedSentences).add(sentence);
-    setClickedSentences(newClicked);
-
-    const { clickedKey } = getCacheKeys(mode);
-    localStorage.setItem(clickedKey, JSON.stringify(Array.from(newClicked)));
+    setClickedSentences((prevClicked) => {
+      const newClicked = new Set(prevClicked).add(sentence);
+      const { clickedKey } = getCacheKeys(mode);
+      localStorage.setItem(clickedKey, JSON.stringify(Array.from(newClicked)));
+      return newClicked;
+    });
   };
 
   const handleRegenerate = () => {
-    if (isLoading || cooldown > 0) return;
+    if (isLoading || (mode === "random" && cooldown > 0)) return;
 
     setClickedSentences(new Set());
-    const { sentencesKey, clickedKey } = getCacheKeys(mode);
+    const { clickedKey } = getCacheKeys(mode);
     localStorage.removeItem(clickedKey);
-    localStorage.removeItem(sentencesKey);
 
     loadSentences(mode, true);
   };
 
-  const handleModeChange = (newMode: string) => {
-    setClickedSentences(new Set());
-    setMode(newMode as Mode);
-    loadSentences(newMode as Mode, false);
+  const handleModeChange = (newModeStr: string) => {
+    const newMode = newModeStr as Mode;
+    setMode(newMode);
 
-    localStorage.setItem(CACHE_KEY_MODE, newMode as Mode);
+    // Stop any ongoing auto-opening process
+    if (autoOpenTimeoutRef.current) {
+      clearTimeout(autoOpenTimeoutRef.current);
+    }
+
+    const { clickedKey } = getCacheKeys(newMode);
+    const cachedClicked = localStorage.getItem(clickedKey);
+    if (cachedClicked) {
+      setClickedSentences(new Set(JSON.parse(cachedClicked)));
+    } else {
+      setClickedSentences(new Set());
+    }
+
+    loadSentences(newMode, false);
+    localStorage.setItem(CACHE_KEY_MODE, newMode);
+  };
+
+  const handleAutoOpenChange = (checked: boolean) => {
+    setIsAutoOpen(checked);
+    localStorage.setItem(CACHE_KEY_AUTO_OPEN, JSON.stringify(checked));
   };
 
   const title = useMemo(() => {
@@ -161,7 +214,7 @@ export default function SentenceExplorer() {
     }
   }, [mode]);
 
-  const isRegenerateDisabled = isLoading || cooldown > 0;
+  const isRegenerateDisabled = isLoading || (mode === "random" && cooldown > 0);
 
   return (
     <div className="container mx-auto px-4 py-12 md:py-20">
@@ -202,7 +255,7 @@ export default function SentenceExplorer() {
               <RefreshCw className="h-5 w-5 animate-spin" />
               <span>Loading...</span>
             </>
-          ) : cooldown > 0 ? (
+          ) : mode === "random" && cooldown > 0 ? (
             <>
               <Timer className="h-5 w-5" />
               <span>{`Wait ${cooldown}s`}</span>
@@ -214,6 +267,14 @@ export default function SentenceExplorer() {
             </>
           )}
         </Button>
+        <div className="flex items-center space-x-2">
+          <Switch
+            id="auto-open-mode"
+            checked={isAutoOpen}
+            onCheckedChange={handleAutoOpenChange}
+          />
+          <Label htmlFor="auto-open-mode">Auto-Open</Label>
+        </div>
       </div>
 
       {isLoading ? (
