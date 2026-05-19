@@ -144,7 +144,7 @@ export default function SentenceExplorer() {
       }
 
       try {
-        const response = await fetch(`/api/quotes?mode=${currentMode}`);
+        const response = await fetch(`/api/v2/quotes?mode=${currentMode}`);
         const data = await response.json();
 
         if (!response.ok) {
