@@ -1,6 +1,8 @@
 import SentenceExplorer from '@/components/sentence-explorer';
 import { createClient } from '@vercel/edge-config';
 
+export const dynamic = 'force-dynamic';
+
 export default async function Home() {
   let cfg = {};
   try {
