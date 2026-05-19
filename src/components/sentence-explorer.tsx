@@ -30,7 +30,7 @@ type Mode = "random" | "today" | "quotes" | "article";
 const COOLDOWN_SECONDS = 30;
 const DEFAULT_AUTO_OPEN_DELAY = 10; // in seconds
 
-export default function SentenceExplorer() {
+export default function SentenceExplorer({ cfg }: { cfg: Record<string, unknown> }) {
   const [sentences, setSentences] = useState<Quote[]>([]);
   const [articles, setArticles] = useState<Article[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -144,7 +144,8 @@ export default function SentenceExplorer() {
       }
 
       try {
-        const response = await fetch(`/api/quotes?mode=${currentMode}`);
+        const baseUrl = cfg['use_v2'] ? '/api/v2/quotes' : '/api/quotes';
+        const response = await fetch(`${baseUrl}?mode=${currentMode}`);
         const data = await response.json();
 
         if (!response.ok) {
