@@ -39,6 +39,7 @@ next-env.d.ts
 
 .genkit/*
 .env*
+.tool-versions
 
 # firebase
 firebase-debug.log

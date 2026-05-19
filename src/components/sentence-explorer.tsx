@@ -88,9 +88,7 @@ export default function SentenceExplorer({ cfg }: { cfg: Record<string, unknown>
           }
         }
         try {
-          const response = await fetch(
-            "https://assets.msn.com/service/news/feed?market=en-xl&%24top=50&apikey=0QfOX3Vn51YCzitbLaRkTTBadtWpgTN8NZLW0C1SEM"
-          );
+          const response = await fetch("/api/articles");
           const data = await response.json();
           if (!response.ok) {
             throw new Error(data.error || "Failed to fetch articles from API.");
